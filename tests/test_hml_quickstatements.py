@@ -247,3 +247,102 @@ def test_quickstatements_stops_on_a_category_it_does_not_know():
 def test_quickstatements_stops_when_article_is_missing_from_manifold():
     with pytest.raises(KeyError, match="care-d3f5"):
         hml.quickstatements([CARE], {}, "2026-11-15")
+
+
+# --- running the command, with only the network faked ---
+
+import io
+import json
+import urllib.request
+
+API = "https://cuny.manifoldapp.org/api/v1/"
+
+PAGES = {
+    "https://rss.humanitiesmethods.org/hml_feed.xml": FEED,
+    API + "journals/hml/relationships/journal_issues": json.dumps(ISSUES),
+    API + "projects/hml-no-1": json.dumps(PROJECT),
+}
+
+
+def fake_network(monkeypatch):
+    """Replace urlopen with a fake that answers only the three expected URLs."""
+    requested = []
+
+    def fake_urlopen(request):
+        requested.append(request.full_url)
+        return io.BytesIO(PAGES[request.full_url].encode("utf-8"))
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    return requested
+
+
+def test_main_writes_the_batch_file_for_issue_one(monkeypatch, tmp_path):
+    fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    hml.main(["1"])
+    batch = (tmp_path / "hml_issue_1.qs").read_text(encoding="utf-8")
+    assert batch.count("CREATE\n") == 4
+    assert 'LAST\tLen\t"Care and Compliance"\n' in batch
+    assert 'LAST\tLen\t"Review of Triptych"\n' in batch
+    assert 'LAST\tLen\t"Editorial"\n' in batch
+    assert 'LAST\tLen\t"Ode"\n' in batch
+
+
+def test_main_leaves_out_everything_from_other_issues(monkeypatch, tmp_path):
+    fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    hml.main(["1"])
+    batch = (tmp_path / "hml_issue_1.qs").read_text(encoding="utf-8")
+    assert "submissions" not in batch
+    assert "zero-with-citation" not in batch
+    assert "draft-piece" not in batch
+    assert "title-says-one" not in batch
+    assert "citation-says-one" not in batch
+    assert "next-year" not in batch
+
+
+def test_main_writes_to_the_file_named_with_output(monkeypatch, tmp_path):
+    fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    hml.main(["1", "--output", str(tmp_path / "mine.qs")])
+    assert (tmp_path / "mine.qs").read_text(encoding="utf-8").startswith("CREATE\n")
+
+
+def test_main_reports_each_item_with_its_type(monkeypatch, tmp_path, capsys):
+    fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    hml.main(["1"])
+    report = capsys.readouterr().out
+    assert "scholarly article: Care and Compliance" in report
+    assert "book review: Review of Triptych" in report
+    assert "editorial: Editorial" in report
+    assert "literary work: Ode" in report
+    assert "Wrote 4 items to hml_issue_1.qs" in report
+
+
+def test_main_refuses_issue_zero_before_touching_the_network(monkeypatch, tmp_path):
+    requested = fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as stopped:
+        hml.main(["0"])
+    assert stopped.value.code == 2
+    assert requested == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_main_refuses_the_draft_issue_numbered_minus_one(monkeypatch, tmp_path):
+    requested = fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as stopped:
+        hml.main(["-1"])
+    assert stopped.value.code == 2
+    assert requested == []
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_main_writes_no_file_when_issue_is_not_on_manifold(monkeypatch, tmp_path):
+    fake_network(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit, match="Issue 2 was not found on Manifold"):
+        hml.main(["2"])
+    assert list(tmp_path.iterdir()) == []

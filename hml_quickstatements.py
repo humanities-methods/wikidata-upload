@@ -2,10 +2,16 @@
 
 import argparse
 import html
+import json
 import re
+import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import date
 from email.utils import parsedate_to_datetime
 from urllib.parse import parse_qsl
+
+FEED_URL = "https://rss.humanitiesmethods.org/hml_feed.xml"
+API_URL = "https://cuny.manifoldapp.org/api/v1"
 
 
 def issue_number(value):
@@ -116,3 +122,35 @@ def quickstatements(articles, categories, retrieved):
         for position, author in enumerate(article["authors"], start=1):
             lines.append(f'LAST\tP2093\t"{author}"\tP1545\t"{position}"{source}')
     return "".join(line + "\n" for line in lines)
+
+
+def fetch(url):
+    """Download a URL and return its text."""
+    request = urllib.request.Request(url, headers={"User-Agent": "hml-quickstatements"})
+    with urllib.request.urlopen(request) as response:
+        return response.read().decode("utf-8")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("issue", type=issue_number, help="issue number, 1 or greater")
+    parser.add_argument("--output", help="file to write (default: hml_issue_N.qs)")
+    args = parser.parse_args(argv)
+    output = args.output or f"hml_issue_{args.issue}.qs"
+
+    articles = feed_articles(fetch(FEED_URL), args.issue)
+    issues = json.loads(fetch(f"{API_URL}/journals/hml/relationships/journal_issues"))
+    slug = project_slug(issues, args.issue)
+    categories = text_categories(json.loads(fetch(f"{API_URL}/projects/{slug}")))
+    batch = quickstatements(articles, categories, date.today().isoformat())
+
+    with open(output, "w", encoding="utf-8") as file:
+        file.write(batch)
+    for article in articles:
+        type_name = WIKIDATA_TYPES[categories[article["url"].rsplit("/", 1)[1]]][1]
+        print(f"{type_name}: {article['title']}")
+    print(f"Wrote {len(articles)} items to {output}")
+
+
+if __name__ == "__main__":
+    main()
