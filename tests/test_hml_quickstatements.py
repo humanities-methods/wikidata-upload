@@ -655,6 +655,18 @@ def test_main_writes_no_file_when_issue_is_not_on_manifold(monkeypatch, tmp_path
     assert list(tmp_path.iterdir()) == []
 
 
+def test_quickstatements_stops_on_a_straight_quote_in_an_author_name():
+    quoted = dict(CARE, authors=["Scout Bell", 'J. "Jay" Smith'])
+    with pytest.raises(SystemExit, match='straight double quote.*J. "Jay" Smith'):
+        hml.quickstatements([quoted], {"care-d3f5": "Peer Reviewed"}, "2026-11-15")
+
+
+def test_quickstatements_accepts_a_straight_apostrophe_in_an_author_name():
+    irish = dict(CARE, authors=["Siobhán O'Brien"])
+    batch = hml.quickstatements([irish], {"care-d3f5": "Peer Reviewed"}, "2026-11-15")
+    assert 'LAST\tP2093\t"Siobhán O\'Brien"\tP1545\t"1"\t' in batch
+
+
 def test_main_writes_no_file_when_a_title_has_a_straight_quote(monkeypatch, tmp_path):
     fake_outside_world(monkeypatch, tmp_path)
     quoted_feed = feed(
