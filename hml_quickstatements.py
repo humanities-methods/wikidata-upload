@@ -86,9 +86,14 @@ def text_categories(project):
     return categories
 
 
+def article_slug(article):
+    """The last part of an article's URL, which is its slug on Manifold."""
+    return article["url"].rsplit("/", 1)[1]
+
+
 def missing_from_feed(project, articles):
     """List the titles of texts Manifold has published that the feed does not have."""
-    in_feed = {article["url"].rsplit("/", 1)[1] for article in articles}
+    in_feed = {article_slug(article) for article in articles}
     missing = []
     for entry in project["included"]:
         if entry["type"] == "texts" and entry["attributes"]["published"]:
@@ -113,11 +118,9 @@ WIKIDATA_TYPES = {
 def wikidata_type(article, categories):
     """Return (item, English name) of the Wikidata type for one article.
 
-    The last part of the article's URL is its Manifold slug, which leads to its
-    category, which leads to the type.
+    The article's Manifold slug leads to its category, which leads to the type.
     """
-    slug = article["url"].rsplit("/", 1)[1]
-    return WIKIDATA_TYPES[categories[slug]]
+    return WIKIDATA_TYPES[categories[article_slug(article)]]
 
 
 def quickstatements(articles, categories, retrieved):
