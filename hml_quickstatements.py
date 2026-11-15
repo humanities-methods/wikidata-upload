@@ -134,9 +134,12 @@ def quickstatements(articles, categories, retrieved):
 
 
 def fetch(url):
-    """Download a URL and return its text."""
+    """Download a URL and return its contents as bytes.
+
+    The XML and JSON readers both accept bytes and work out the encoding themselves.
+    """
     with urllib.request.urlopen(url) as response:
-        return response.read().decode("utf-8")
+        return response.read()
 
 
 def main(argv=None):
