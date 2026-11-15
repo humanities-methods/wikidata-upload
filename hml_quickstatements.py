@@ -93,6 +93,16 @@ WIKIDATA_TYPES = {
 }
 
 
+def wikidata_type(article, categories):
+    """Return (item, English name) of the Wikidata type for one article.
+
+    The last part of the article's URL is its Manifold slug, which leads to its
+    category, which leads to the type.
+    """
+    slug = article["url"].rsplit("/", 1)[1]
+    return WIKIDATA_TYPES[categories[slug]]
+
+
 def quickstatements(articles, categories, retrieved):
     """Write the articles as QuickStatements V1 commands, one new item each.
 
@@ -103,8 +113,7 @@ def quickstatements(articles, categories, retrieved):
     for article in articles:
         if article["issue"] < 1:
             raise ValueError(f"Refusing to write issue {article['issue']}")
-        slug = article["url"].rsplit("/", 1)[1]
-        type_qid, type_name = WIKIDATA_TYPES[categories[slug]]
+        type_qid, type_name = wikidata_type(article, categories)
         year = article["date"][:4]
         source = f'\tS854\t"{article["url"]}"\tS813\t+{retrieved}T00:00:00Z/11'
         lines += [
@@ -146,8 +155,7 @@ def main(argv=None):
     with open(output, "w", encoding="utf-8") as file:
         file.write(batch)
     for article in articles:
-        type_name = WIKIDATA_TYPES[categories[article["url"].rsplit("/", 1)[1]]][1]
-        print(f"{type_name}: {article['title']}")
+        print(f"{wikidata_type(article, categories)[1]}: {article['title']}")
     print(f"Wrote {len(articles)} items to {output}")
 
 
