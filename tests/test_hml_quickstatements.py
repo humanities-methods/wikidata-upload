@@ -141,6 +141,13 @@ FEED = feed(
         "Mon, 01 Mar 2027 10:00:00 +0000",
         coins("Next Year", 2, ["Later, Lee"], "next-year"),
     ),
+    # Issue 4 is still a draft on Manifold, but one article is already in the feed:
+    feed_item(
+        "Early Bird (Issue 4)",
+        "early-bird",
+        "Mon, 01 Nov 2027 10:00:00 +0000",
+        coins("Early Bird", 4, ["Early, Em"], "early-bird"),
+    ),
 )
 
 
@@ -164,6 +171,7 @@ ISSUES = {
         api_issue("1", "hml-no-1", False),
         api_issue("0", "hml-no-0", False),
         api_issue("-1", "hml-no-1-116dd5c9", True),
+        api_issue("4", "hml-no-4", True),
     ],
     "meta": {"pagination": {"perPage": 20, "currentPage": 1, "totalPages": 1}},
 }
@@ -356,6 +364,11 @@ def test_project_slug_finds_a_later_issue():
 def test_project_slug_stops_when_issue_is_not_on_manifold():
     with pytest.raises(SystemExit, match="Issue 3 was not found on Manifold"):
         hml.project_slug(ISSUES, 3)
+
+
+def test_project_slug_refuses_an_issue_still_in_draft():
+    with pytest.raises(SystemExit, match="Issue 4 is still a draft on Manifold"):
+        hml.project_slug(ISSUES, 4)
 
 
 def test_text_categories_maps_each_text_slug_to_its_category():
@@ -574,6 +587,14 @@ def test_main_writes_no_file_when_issue_is_not_on_manifold(monkeypatch, tmp_path
     fake_outside_world(monkeypatch, tmp_path)
     with pytest.raises(SystemExit, match="Issue 3 was not found on Manifold"):
         hml.main(["3"])
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_main_writes_no_file_for_a_draft_issue(monkeypatch, tmp_path):
+    requested = fake_outside_world(monkeypatch, tmp_path)
+    with pytest.raises(SystemExit, match="Issue 4 is still a draft on Manifold"):
+        hml.main(["4"])
+    assert API + "projects/hml-no-4" not in requested
     assert list(tmp_path.iterdir()) == []
 
 

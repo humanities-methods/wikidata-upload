@@ -59,9 +59,14 @@ def feed_articles(feed_xml, issue):
 
 
 def project_slug(issues, issue):
-    """Find the Manifold project that holds one issue, from the journal's issue list."""
+    """Find the Manifold project that holds one issue, from the journal's issue list.
+
+    An issue that Manifold still marks as a draft is refused.
+    """
     for entry in issues["data"]:
         if entry["attributes"]["number"] == str(issue):
+            if entry["attributes"]["draft"]:
+                raise SystemExit(f"Issue {issue} is still a draft on Manifold")
             return entry["attributes"]["projectSlug"]
     raise SystemExit(f"Issue {issue} was not found on Manifold")
 
