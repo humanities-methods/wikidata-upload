@@ -4,6 +4,7 @@ import argparse
 import html
 import json
 import re
+import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import date
@@ -85,6 +86,17 @@ def text_categories(project):
     return categories
 
 
+def missing_from_feed(project, articles):
+    """List the titles of texts Manifold has published that the feed does not have."""
+    in_feed = {article["url"].rsplit("/", 1)[1] for article in articles}
+    missing = []
+    for entry in project["included"]:
+        if entry["type"] == "texts" and entry["attributes"]["published"]:
+            if entry["attributes"]["slug"] not in in_feed:
+                missing.append(entry["attributes"]["titlePlaintext"])
+    return missing
+
+
 JOURNAL_QID = "Q142069496"
 JOURNAL_NAME = "Humanities Methods in Librarianship"
 ENGLISH_QID = "Q1860"
@@ -162,7 +174,8 @@ def main(argv=None):
     articles = feed_articles(fetch(FEED_URL), args.issue)
     issues = json.loads(fetch(f"{API_URL}/journals/hml/relationships/journal_issues"))
     slug = project_slug(issues, args.issue)
-    categories = text_categories(json.loads(fetch(f"{API_URL}/projects/{slug}")))
+    project = json.loads(fetch(f"{API_URL}/projects/{slug}"))
+    categories = text_categories(project)
     batch = quickstatements(articles, categories, date.today().isoformat())
 
     with open(output, "w", encoding="utf-8") as file:
@@ -170,6 +183,12 @@ def main(argv=None):
     for article in articles:
         print(f"{wikidata_type(article, categories)[1]}: {article['title']}")
     print(f"Wrote {len(articles)} items to {output}")
+    for title in missing_from_feed(project, articles):
+        print(
+            f"Warning: {title} is published on Manifold but not in the feed, "
+            "so it is not in this batch",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

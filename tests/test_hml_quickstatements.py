@@ -185,11 +185,16 @@ def api_category(category_id, title):
     }
 
 
-def api_text(slug, category_id):
+def api_text(slug, category_id, title="A Text", published=True):
     return {
         "id": "text-" + slug,
         "type": "texts",
-        "attributes": {"slug": slug, "published": True, "creatorNames": ""},
+        "attributes": {
+            "slug": slug,
+            "titlePlaintext": title,
+            "published": published,
+            "creatorNames": "",
+        },
         "relationships": {
             "category": {"data": {"id": category_id, "type": "categories"}}
         },
@@ -381,6 +386,28 @@ def test_text_categories_maps_each_text_slug_to_its_category():
     }
 
 
+# Issue 2's project with two extra texts: one published but not yet in the feed,
+# and one Manifold has not published.
+PROJECT_2_AHEAD_OF_FEED = {
+    "data": PROJECT_2["data"],
+    "included": PROJECT_2["included"]
+    + [
+        api_text("interview-9f1c", "cat-pr", title="An Interview"),
+        api_text("unfinished-07aa", "cat-pr", title="Unfinished", published=False),
+    ],
+}
+
+
+def test_missing_from_feed_lists_a_published_text_the_feed_lacks():
+    articles = hml.feed_articles(FEED, 2)
+    assert hml.missing_from_feed(PROJECT_2_AHEAD_OF_FEED, articles) == ["An Interview"]
+
+
+def test_missing_from_feed_is_empty_when_the_feed_has_every_text():
+    articles = hml.feed_articles(FEED, 1)
+    assert hml.missing_from_feed(PROJECT_1, articles) == []
+
+
 # ---------------------------------------------------------------------------
 # Writing the QuickStatements batch
 # ---------------------------------------------------------------------------
@@ -556,6 +583,38 @@ def test_main_writes_to_the_file_named_with_output(monkeypatch, tmp_path):
     hml.main(["1", "--output", "mine.qs"])
     assert [path.name for path in tmp_path.iterdir()] == ["mine.qs"]
     assert (tmp_path / "mine.qs").read_text(encoding="utf-8").startswith("CREATE\n")
+
+
+def test_main_warns_about_a_published_text_missing_from_the_feed(
+    monkeypatch, tmp_path, capsys
+):
+    fake_outside_world(monkeypatch, tmp_path)
+    monkeypatch.setitem(
+        PAGES, API + "projects/hml-no-2", json.dumps(PROJECT_2_AHEAD_OF_FEED)
+    )
+    hml.main(["2"])
+    warnings = capsys.readouterr().err
+    assert "An Interview" in warnings
+    assert "not in the feed" in warnings
+    assert "Unfinished" not in warnings
+
+
+def test_main_still_writes_the_batch_when_the_feed_is_behind(monkeypatch, tmp_path):
+    fake_outside_world(monkeypatch, tmp_path)
+    monkeypatch.setitem(
+        PAGES, API + "projects/hml-no-2", json.dumps(PROJECT_2_AHEAD_OF_FEED)
+    )
+    hml.main(["2"])
+    batch = (tmp_path / "hml_issue_2.qs").read_text(encoding="utf-8")
+    assert 'LAST\tLen\t"Next Year"\n' in batch
+
+
+def test_main_prints_no_warning_when_the_feed_is_complete(
+    monkeypatch, tmp_path, capsys
+):
+    fake_outside_world(monkeypatch, tmp_path)
+    hml.main(["1"])
+    assert capsys.readouterr().err == ""
 
 
 def test_main_reports_each_item_with_its_type(monkeypatch, tmp_path, capsys):
