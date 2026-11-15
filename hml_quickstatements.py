@@ -43,8 +43,8 @@ def feed_articles(feed_xml, issue):
         authors = []
         for key, value in fields:
             if key == "rft.au":
-                family, given = value.split(", ", 1)
-                authors.append(f"{given} {family}")
+                family, comma, given = value.partition(", ")
+                authors.append(f"{given} {family}" if comma else value)
         published = parsedate_to_datetime(item.findtext("pubDate"))
         articles.append(
             {
@@ -126,8 +126,7 @@ def quickstatements(articles, categories, retrieved):
 
 def fetch(url):
     """Download a URL and return its text."""
-    request = urllib.request.Request(url, headers={"User-Agent": "hml-quickstatements"})
-    with urllib.request.urlopen(request) as response:
+    with urllib.request.urlopen(url) as response:
         return response.read().decode("utf-8")
 
 
