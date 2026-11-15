@@ -157,3 +157,93 @@ def test_text_categories_maps_each_text_slug_to_its_category():
         "editorial-818c": "Editorial",
         "ode-3a52": "CREATIVE",
     }
+
+
+# --- writing the QuickStatements batch ---
+
+CATEGORIES = {
+    "care-d3f5": "Peer Reviewed",
+    "triptych-dcee": "Book Reviews",
+    "editorial-818c": "Editorial",
+    "ode-3a52": "CREATIVE",
+}
+
+CARE = {
+    "title": "Care and Compliance",
+    "url": READ + "care-d3f5",
+    "issue": 1,
+    "authors": ["Scout Bell"],
+    "date": "2026-10-23",
+}
+
+SOURCE = f'\tS854\t"{READ}care-d3f5"\tS813\t+2026-11-15T00:00:00Z/11'
+
+
+def test_quickstatements_writes_one_complete_item():
+    assert hml.quickstatements([CARE], CATEGORIES, "2026-11-15") == (
+        "CREATE\n"
+        'LAST\tLen\t"Care and Compliance"\n'
+        'LAST\tDen\t"scholarly article in Humanities Methods in Librarianship, issue 1 (2026)"\n'
+        f"LAST\tP31\tQ13442814{SOURCE}\n"
+        f'LAST\tP1476\ten:"Care and Compliance"{SOURCE}\n'
+        f"LAST\tP1433\tQ142069496{SOURCE}\n"
+        f'LAST\tP433\t"1"{SOURCE}\n'
+        f"LAST\tP577\t+2026-10-23T00:00:00Z/11{SOURCE}\n"
+        f"LAST\tP407\tQ1860{SOURCE}\n"
+        f'LAST\tP953\t"{READ}care-d3f5"\n'
+        f'LAST\tP2093\t"Scout Bell"\tP1545\t"1"{SOURCE}\n'
+    )
+
+
+def test_quickstatements_types_a_book_review():
+    review = dict(CARE, url=READ + "triptych-dcee")
+    batch = hml.quickstatements([review], CATEGORIES, "2026-11-15")
+    assert "LAST\tP31\tQ637866\t" in batch
+    assert 'LAST\tDen\t"book review in Humanities Methods' in batch
+
+
+def test_quickstatements_types_an_editorial():
+    editorial = dict(CARE, url=READ + "editorial-818c")
+    batch = hml.quickstatements([editorial], CATEGORIES, "2026-11-15")
+    assert "LAST\tP31\tQ871232\t" in batch
+    assert 'LAST\tDen\t"editorial in Humanities Methods' in batch
+
+
+def test_quickstatements_types_a_creative_piece_as_literary_work():
+    ode = dict(CARE, url=READ + "ode-3a52")
+    batch = hml.quickstatements([ode], CATEGORIES, "2026-11-15")
+    assert "LAST\tP31\tQ7725634\t" in batch
+    assert 'LAST\tDen\t"literary work in Humanities Methods' in batch
+
+
+def test_quickstatements_numbers_several_authors_in_order():
+    two = dict(CARE, authors=["Sean Francis", "J. Morgan Rowe-Morris"])
+    batch = hml.quickstatements([two], CATEGORIES, "2026-11-15")
+    assert 'LAST\tP2093\t"Sean Francis"\tP1545\t"1"\t' in batch
+    assert 'LAST\tP2093\t"J. Morgan Rowe-Morris"\tP1545\t"2"\t' in batch
+
+
+def test_quickstatements_writes_no_author_line_without_authors():
+    editorial = dict(CARE, url=READ + "editorial-818c", authors=[])
+    batch = hml.quickstatements([editorial], CATEGORIES, "2026-11-15")
+    assert "P2093" not in batch
+
+
+def test_quickstatements_refuses_issue_zero():
+    with pytest.raises(ValueError, match="Refusing to write issue 0"):
+        hml.quickstatements([dict(CARE, issue=0)], CATEGORIES, "2026-11-15")
+
+
+def test_quickstatements_refuses_negative_issue():
+    with pytest.raises(ValueError, match="Refusing to write issue -1"):
+        hml.quickstatements([dict(CARE, issue=-1)], CATEGORIES, "2026-11-15")
+
+
+def test_quickstatements_stops_on_a_category_it_does_not_know():
+    with pytest.raises(KeyError, match="Interviews"):
+        hml.quickstatements([CARE], {"care-d3f5": "Interviews"}, "2026-11-15")
+
+
+def test_quickstatements_stops_when_article_is_missing_from_manifold():
+    with pytest.raises(KeyError, match="care-d3f5"):
+        hml.quickstatements([CARE], {}, "2026-11-15")

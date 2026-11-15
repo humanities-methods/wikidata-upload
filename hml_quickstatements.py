@@ -72,3 +72,47 @@ def text_categories(project):
             category_id = entry["relationships"]["category"]["data"]["id"]
             categories[entry["attributes"]["slug"]] = titles[category_id]
     return categories
+
+
+JOURNAL_QID = "Q142069496"
+JOURNAL_NAME = "Humanities Methods in Librarianship"
+ENGLISH_QID = "Q1860"
+
+# Manifold category title -> (Wikidata "instance of" item, its English name)
+WIKIDATA_TYPES = {
+    "Peer Reviewed": ("Q13442814", "scholarly article"),
+    "Book Reviews": ("Q637866", "book review"),
+    "Editorial": ("Q871232", "editorial"),
+    "CREATIVE": ("Q7725634", "literary work"),
+}
+
+
+def quickstatements(articles, categories, retrieved):
+    """Write the articles as QuickStatements V1 commands, one new item each.
+
+    `categories` maps a text's slug to its Manifold category, and `retrieved` is
+    today's date (YYYY-MM-DD) for the "retrieved" part of each reference.
+    """
+    lines = []
+    for article in articles:
+        if article["issue"] < 1:
+            raise ValueError(f"Refusing to write issue {article['issue']}")
+        slug = article["url"].rsplit("/", 1)[1]
+        type_qid, type_name = WIKIDATA_TYPES[categories[slug]]
+        year = article["date"][:4]
+        source = f'\tS854\t"{article["url"]}"\tS813\t+{retrieved}T00:00:00Z/11'
+        lines += [
+            "CREATE",
+            f'LAST\tLen\t"{article["title"]}"',
+            f'LAST\tDen\t"{type_name} in {JOURNAL_NAME}, issue {article["issue"]} ({year})"',
+            f"LAST\tP31\t{type_qid}{source}",
+            f'LAST\tP1476\ten:"{article["title"]}"{source}',
+            f"LAST\tP1433\t{JOURNAL_QID}{source}",
+            f'LAST\tP433\t"{article["issue"]}"{source}',
+            f'LAST\tP577\t+{article["date"]}T00:00:00Z/11{source}',
+            f"LAST\tP407\t{ENGLISH_QID}{source}",
+            f'LAST\tP953\t"{article["url"]}"',
+        ]
+        for position, author in enumerate(article["authors"], start=1):
+            lines.append(f'LAST\tP2093\t"{author}"\tP1545\t"{position}"{source}')
+    return "".join(line + "\n" for line in lines)
