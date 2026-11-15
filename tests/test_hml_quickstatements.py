@@ -473,6 +473,12 @@ def test_quickstatements_stops_when_article_is_missing_from_manifold():
         hml.quickstatements([CARE], {}, "2026-11-15")
 
 
+def test_quickstatements_stops_on_a_straight_quote_in_a_title():
+    quoted = dict(CARE, title='The "Neutral" Catalogue')
+    with pytest.raises(SystemExit, match='straight double quote.*The "Neutral"'):
+        hml.quickstatements([quoted], {"care-d3f5": "Peer Reviewed"}, "2026-11-15")
+
+
 # ---------------------------------------------------------------------------
 # Running the command, with only the network and the clock faked
 # ---------------------------------------------------------------------------
@@ -587,6 +593,25 @@ def test_main_writes_no_file_when_issue_is_not_on_manifold(monkeypatch, tmp_path
     fake_outside_world(monkeypatch, tmp_path)
     with pytest.raises(SystemExit, match="Issue 3 was not found on Manifold"):
         hml.main(["3"])
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_main_writes_no_file_when_a_title_has_a_straight_quote(monkeypatch, tmp_path):
+    fake_outside_world(monkeypatch, tmp_path)
+    quoted_feed = feed(
+        feed_item(
+            'The "Neutral" Catalogue (Issue 2)',
+            "next-year",
+            "Mon, 01 Mar 2027 10:00:00 +0000",
+            coins('The "Neutral" Catalogue', 2, ["Later, Lee"], "next-year"),
+        )
+    )
+    # setitem swaps in this feed for this one test and puts the original back after.
+    monkeypatch.setitem(
+        PAGES, "https://rss.humanitiesmethods.org/hml_feed.xml", quoted_feed
+    )
+    with pytest.raises(SystemExit, match="straight double quote"):
+        hml.main(["2"])
     assert list(tmp_path.iterdir()) == []
 
 

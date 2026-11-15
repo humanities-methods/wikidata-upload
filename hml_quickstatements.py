@@ -118,6 +118,11 @@ def quickstatements(articles, categories, retrieved):
     for article in articles:
         if article["issue"] < 1:
             raise ValueError(f"Refusing to write issue {article['issue']}")
+        if '"' in article["title"]:
+            raise SystemExit(
+                "Title has a straight double quote, which QuickStatements cannot "
+                f"write: {article['title']}"
+            )
         type_qid, type_name = wikidata_type(article, categories)
         year = article["date"][:4]
         source = f'\tS854\t"{article["url"]}"\tS813\t+{retrieved}T00:00:00Z/11'
