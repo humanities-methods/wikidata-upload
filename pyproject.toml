@@ -1,0 +1,17 @@
+[project]
+name = "wikidata-upload"
+version = "0.1.0"
+description = "Build QuickStatements batches for Humanities Methods in Librarianship"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[dependency-groups]
+dev = [
+    "black>=26.10.1",
+    "pytest>=9.2.0",
+]
